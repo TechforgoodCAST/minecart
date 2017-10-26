@@ -1,0 +1,27 @@
+name:                minecart
+version:             0.1.0.0
+synopsis:            utility to transport gingerbread csv data into elasticsearch
+homepage:            https://github.com/TechforgoodCAST/minecart#readme
+license:             MIT
+license-file:        LICENSE
+author:              Andrew MacMurray
+copyright:           2017 Andrew MacMurray
+category:            Web
+build-type:          Simple
+cabal-version:       >=1.10
+extra-source-files:  README.md
+
+executable minecart
+  hs-source-dirs:      src
+  main-is:             Minecart.hs
+  default-language:    Haskell2010
+  build-depends:       base >= 4.7 && < 5
+                     , aeson
+                     , bloodhound
+                     , bytestring
+                     , cassava
+                     , http-client
+                     , text
+                     , time
+                     , trifecta
+                     , vector
