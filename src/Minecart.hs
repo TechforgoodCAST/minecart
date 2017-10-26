@@ -5,10 +5,11 @@ module Main where
 
 import           Control.Applicative    ((<|>))
 import           Control.Monad.IO.Class (liftIO)
+import           Data.Aeson             (object, (.=))
 import qualified Data.Aeson             as A
 import           Data.ByteString.Lazy   (ByteString)
 import qualified Data.ByteString.Lazy   as BL
-import           Data.Csv               hiding (Parser)
+import           Data.Csv               hiding (Parser, (.=))
 import qualified Data.Csv.Streaming     as S
 import           Data.Text              (pack)
 import           Data.Text.Lazy         (Text)
@@ -44,6 +45,22 @@ instance FromNamedRecord Post where
                             <*> (toDay <$> (r .: "CreationDate"))
                             <*> (toBool <$> (r .: "Visible"))
                             <*> (toBool <$> (r .: "Moderated"))
+
+data PostMapping = PostMapping
+
+instance A.ToJSON PostMapping where
+  toJSON PostMapping =
+    object
+      [ "properties" .=
+          object [
+            "username"  .= object ["type" .= ("keyword" :: Text)]
+          , "subject"   .= object ["type" .= ("text" :: Text)]
+          , "body"      .= object ["type" .= ("text" :: Text)]
+          , "date"      .= object ["type" .= ("date" :: Text)]
+          , "visible"   .= object ["type" .= ("visible" :: Text)]
+          , "moderated" .= object ["type" .= ("moderated" :: Text)]
+          ]
+      ]
 
 
 toBool :: ByteString -> Bool
@@ -85,10 +102,11 @@ parseMonth = month 1  "Jan" <|>
   where month n m = try $ const n <$> string m
 
 
-runBH'      = withBH defaultManagerSettings server
-gbIndex     = IndexName "gingerbread"
-postMapping = MappingName "post"
-server      = Server "http://localhost:9200"
+runBH'        = withBH defaultManagerSettings server
+indexSettings = IndexSettings (ShardCount 1) (ReplicaCount 0)
+gbIndex       = IndexName "gingerbread"
+postMapping   = MappingName "post"
+server        = Server "http://localhost:9200"
 
 
 mkBulkStream :: S.Records Post -> V.Vector BulkOperation
@@ -107,7 +125,11 @@ main = do
   case S.decodeByName x of
     Left err      -> putStrLn err
     Right (_, xs) -> runBH' $ do
+      liftIO $ putStrLn "resetting index"
+      _ <- deleteIndex gbIndex
+      _ <- createIndex indexSettings gbIndex
+      _ <- putMapping gbIndex postMapping PostMapping
       liftIO $ putStrLn "posting to elasticsearch"
-      z <- bulk $ mkBulkStream xs
-      y <- refreshIndex gbIndex
+      _ <- bulk $ mkBulkStream xs
+      _ <- refreshIndex gbIndex
       liftIO $ putStrLn "done"
