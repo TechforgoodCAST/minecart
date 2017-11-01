@@ -13,17 +13,22 @@ import           Data.Csv               hiding (Parser, (.=))
 import qualified Data.Csv.Streaming     as S
 import           Data.Text              (pack)
 import           Data.Text.Lazy         (Text)
-import           Data.Time
+import           Data.Time              (Day, fromGregorian)
 import qualified Data.Vector            as V
 import           Database.V5.Bloodhound
 import           GHC.Generics           (Generic)
-import           Network.HTTP.Client
+import           Network.HTTP.Client    (defaultManagerSettings)
 import           System.Environment     (getArgs)
-import           Text.Trifecta
+import           Text.Trifecta          (Parser, Result (..), char, integer,
+                                         parseString, string, try)
 
 data Post =
   Post {
-    username  :: Text
+    userId    :: Int
+  , topicId   :: Int
+  , forumId   :: Int
+  , messageId :: Int
+  , username  :: Text
   , subject   :: Text
   , body      :: Text
   , date      :: Maybe Day
@@ -39,7 +44,11 @@ instance A.FromJSON Post where
   parseJSON = A.genericParseJSON A.defaultOptions
 
 instance FromNamedRecord Post where
-  parseNamedRecord r = Post <$> r .: "UserName"
+  parseNamedRecord r = Post <$> r .: "UserID"
+                            <*> r .: "TopicID"
+                            <*> r .: "ForumID"
+                            <*> r .: "MessageID"
+                            <*> r .: "UserName"
                             <*> r .: "Subject"
                             <*> r .: "Body"
                             <*> (toDay <$> (r .: "CreationDate"))
@@ -53,7 +62,11 @@ instance A.ToJSON PostMapping where
     object
       [ "properties" .=
           object [
-            "username"  .= object ["type" .= ("keyword" :: Text)]
+            "userId"    .= object ["type" .= ("keyword" :: Text)]
+          , "topidId"   .= object ["type" .= ("keyword" :: Text)]
+          , "forumId"   .= object ["type" .= ("keyword" :: Text)]
+          , "messageId" .= object ["type" .= ("keyword" :: Text)]
+          , "username"  .= object ["type" .= ("keyword" :: Text)]
           , "subject"   .= object ["type" .= ("text" :: Text)]
           , "body"      .= object ["type" .= ("text" :: Text)]
           , "date"      .= object ["type" .= ("date" :: Text)]
