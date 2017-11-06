@@ -20,8 +20,10 @@ executable minecart
                      , bloodhound
                      , bytestring
                      , cassava
+                     , containers
                      , http-client
                      , text
                      , time
+                     , transformers
                      , trifecta
                      , vector
