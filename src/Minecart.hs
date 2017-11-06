@@ -24,32 +24,30 @@ gbIndex       = IndexName "gingerbread"
 postMapping   = MappingName "post"
 server        = Server "http://localhost:9200"
 
-mkBulkStream :: S.Records EntityData
-             -> S.Records SentenceData
-             -> S.Records Post
-             -> V.Vector BulkOperation
+mkBulkStream :: S.Records EntityData -> S.Records SentenceData -> S.Records Post -> V.Vector BulkOperation
 mkBulkStream entities sentences = snd . foldr incId (0, V.empty)
   where
-    enMap = messageEntities entities
-    sMap  = messageSentences sentences
     incId post (n, stream) = (n + 1, V.snoc stream $ mkBulkOperation n enMap sMap post)
+    enMap = entitiesMap entities
+    sMap  = sentencesMap sentences
 
-mkBulkOperation :: MessageId
-                -> IM.IntMap [Entity]
-                -> IM.IntMap [(SentimentScore, SentimentMagnitude, Sentence)]
-                -> Post
-                -> BulkOperation
+mkBulkOperation :: MessageId -> IM.IntMap [Entity] -> IM.IntMap [(SentimentScore, SentimentMagnitude, Sentence)] -> Post -> BulkOperation
 mkBulkOperation n enMap sMap post = BulkIndex gbIndex postMapping (DocId . pack $ show n) $ toJSON updatedPost
   where
-    entities    = IM.lookup (messageId post) enMap
-    sentences   = IM.lookup (messageId post) sMap
-    sentiment   = getSentiment <$> sentences
-    sentences'  = map (\(a, b, c) -> c) <$> sentences
-    updatedPost = setSentiment (fromMaybe (0, 0) sentiment) . setSentences (fromMaybe [] sentences') . setEntities (toList entities) $ post
-    toList      = fromMaybe []
+    updatedPost = updatePost n enMap sMap post
 
-messageEntities :: S.Records EntityData -> IM.IntMap [Entity]
-messageEntities = foldr accum IM.empty
+updatePost :: MessageId -> IM.IntMap [Entity] -> IM.IntMap [(SentimentScore, SentimentMagnitude, Sentence)] -> Post -> Post
+updatePost n enMap sMap post = fromMaybe post $ do
+  let mId = messageId post
+  es <- IM.lookup mId enMap
+  ss <- IM.lookup mId sMap
+  let ss' = thrd <$> ss
+      sn  = getSentiment ss
+      thrd (a, b, c) = c
+  return . setSentiment sn . setSentences ss' . setEntities es $ post
+
+entitiesMap :: S.Records EntityData -> IM.IntMap [Entity]
+entitiesMap = foldr accum IM.empty
   where
     accum (mId, a) = IM.insertWith (++) mId [a]
 
@@ -58,28 +56,36 @@ setEntities xs post = post { entities = xs }
 
 getSentiment :: [(SentimentScore, SentimentMagnitude, Sentence)] -> (SentimentScore, SentimentMagnitude)
 getSentiment [] = (0, 0)
-getSentiment xs = (\(dss, dsm, _) -> (dss, dsm)) . head $ xs
+getSentiment xs = (\(ss, sm, _) -> (ss, sm)) . head $ xs
 
-messageSentences :: S.Records SentenceData -> IM.IntMap [(SentimentScore, SentimentMagnitude, Sentence)]
-messageSentences = foldr accum IM.empty
+sentencesMap :: S.Records SentenceData -> IM.IntMap [(SentimentScore, SentimentMagnitude, Sentence)]
+sentencesMap = foldr accum IM.empty
   where
-    accum (mId, dss, sdm, a) = IM.insertWith (++) mId [(dss, sdm, a)]
+    accum (mId, ss, sm, a) = IM.insertWith (++) mId [(ss, sm, a)]
 
 setSentences :: [Sentence] -> Post -> Post
 setSentences xs post = post { sentences = xs }
 
 setSentiment :: (SentimentScore, SentimentMagnitude) -> Post -> Post
-setSentiment (dss, dsm) post = post { documentSentimentScore = dss, documentSentimentMagnitude = dsm }
+setSentiment (ss, sm) post = post {
+    documentSentimentScore = ss
+  , documentSentimentMagnitude = sm
+  }
 
 handleElastic :: S.Records EntityData -> S.Records SentenceData -> S.Records Post -> BH IO ()
 handleElastic entities sentences posts = do
-  deleteIndex gbIndex
-  createIndex indexSettings gbIndex
-  putMapping gbIndex postMapping PostMapping
-
+  -- resetIndex
   liftIO $ putStrLn "posting data to elasticsearch"
   bulk $ mkBulkStream entities sentences posts
   refreshIndex gbIndex
+  return ()
+
+resetIndex :: BH IO ()
+resetIndex = do
+  liftIO $ putStrLn "resetting index"
+  deleteIndex gbIndex
+  createIndex indexSettings gbIndex
+  putMapping gbIndex postMapping PostMapping
   return ()
 
 main :: IO ()
