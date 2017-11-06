@@ -24,5 +24,6 @@ executable minecart
                      , http-client
                      , text
                      , time
+                     , transformers
                      , trifecta
                      , vector

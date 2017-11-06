@@ -3,29 +3,30 @@
 
 module Main where
 
-import           Control.Applicative    ((<|>))
-import           Control.Monad.IO.Class (liftIO)
-import           Data.Aeson             (FromJSON, ToJSON, defaultOptions,
-                                         genericParseJSON, genericToJSON,
-                                         object, (.=))
-import qualified Data.Aeson             as A
-import           Data.ByteString.Lazy   (ByteString)
-import qualified Data.ByteString.Lazy   as BL
-import           Data.Csv               hiding (Parser, (.=))
-import qualified Data.Csv.Streaming     as S
-import qualified Data.IntMap            as IM
-import           Data.Maybe             (fromMaybe)
-import           Data.Monoid            ((<>))
-import           Data.Text              (pack)
-import           Data.Text.Lazy         (Text)
-import           Data.Time              (Day, fromGregorian)
-import qualified Data.Vector            as V
+import           Control.Applicative        ((<|>))
+import           Control.Monad.IO.Class     (liftIO)
+import           Control.Monad.Trans.Except
+import           Data.Aeson                 (FromJSON, ToJSON, defaultOptions,
+                                             genericParseJSON, genericToJSON,
+                                             object, (.=))
+import qualified Data.Aeson                 as A
+import           Data.ByteString.Lazy       (ByteString)
+import qualified Data.ByteString.Lazy       as BL
+import           Data.Csv                   hiding (Parser, (.=))
+import qualified Data.Csv.Streaming         as S
+import qualified Data.IntMap                as IM
+import           Data.Maybe                 (fromMaybe)
+import           Data.Monoid                ((<>))
+import           Data.Text                  (pack)
+import           Data.Text.Lazy             (Text)
+import           Data.Time                  (Day, fromGregorian)
+import qualified Data.Vector                as V
 import           Database.V5.Bloodhound
-import           GHC.Generics           (Generic)
-import           Network.HTTP.Client    (defaultManagerSettings)
-import           System.Environment     (getArgs)
-import           Text.Trifecta          (Parser, Result (..), char, integer,
-                                         parseString, string, try)
+import           GHC.Generics               (Generic)
+import           Network.HTTP.Client        (defaultManagerSettings)
+import           System.Environment         (getArgs)
+import           Text.Trifecta              (Parser, Result (..), char, integer,
+                                             parseString, string, try)
 data Post =
   Post {
     userId    :: Int
@@ -50,17 +51,11 @@ data Entity =
   , sentimentScore     :: Double
   } deriving (Eq, Show, Generic)
 
-instance ToJSON Entity where
-  toJSON = genericToJSON defaultOptions
+instance ToJSON Post
+instance FromJSON Post
 
-instance ToJSON Post where
-  toJSON = genericToJSON defaultOptions
-
-instance FromJSON Entity where
-  parseJSON = genericParseJSON defaultOptions
-
-instance FromJSON Post where
-  parseJSON = genericParseJSON defaultOptions
+instance ToJSON Entity
+instance FromJSON Entity
 
 instance FromNamedRecord Post where
   parseNamedRecord r = Post <$> r .: "UserID"
@@ -84,22 +79,25 @@ instance FromNamedRecord Entity where
 
 data PostMapping = PostMapping
 
-instance A.ToJSON PostMapping where
+instance ToJSON PostMapping where
   toJSON PostMapping =
+    let
+      ofType k x = k .= object ["type" .= (x :: Text)]
+    in
     object
       [ "properties" .=
           object [
-            "userId"    .= object ["type" .= ("integer" :: Text)]
-          , "topidId"   .= object ["type" .= ("integer" :: Text)]
-          , "forumId"   .= object ["type" .= ("integer" :: Text)]
-          , "messageId" .= object ["type" .= ("integer" :: Text)]
-          , "username"  .= object ["type" .= ("keyword" :: Text)]
-          , "subject"   .= object ["type" .= ("text" :: Text)]
-          , "body"      .= object ["type" .= ("text" :: Text)]
-          , "date"      .= object ["type" .= ("date" :: Text)]
-          , "visible"   .= object ["type" .= ("visible" :: Text)]
-          , "moderated" .= object ["type" .= ("moderated" :: Text)]
-          , "entities"  .= object ["type" .= ("nested" :: Text)]
+            "userId"    `ofType` "integer"
+          , "topidId"   `ofType` "integer"
+          , "forumId"   `ofType` "integer"
+          , "messageId" `ofType` "integer"
+          , "username"  `ofType` "integer"
+          , "subject"   `ofType` "text"
+          , "body"      `ofType` "text"
+          , "date"      `ofType` "date"
+          , "visible"   `ofType` "visible"
+          , "moderated" `ofType` "moderated"
+          , "entities"  `ofType` "nested"
           ]
       ]
 
@@ -114,7 +112,6 @@ toDay rawDate =
     Success d -> Just d
     Failure _ -> Nothing
 
-
 dateParser :: Parser Day
 dateParser = do
   _ <- char '\"'
@@ -124,7 +121,6 @@ dateParser = do
   _ <- char '-'
   y <- integer
   return $ fromGregorian (2000 + y) m (fromIntegral d)
-
 
 parseMonth :: Parser Int
 parseMonth = month 1  "Jan" <|>
@@ -141,13 +137,11 @@ parseMonth = month 1  "Jan" <|>
              month 12 "Dec"
   where month n m = try $ const n <$> string m
 
-
 runBH'        = withBH defaultManagerSettings server
 indexSettings = IndexSettings (ShardCount 1) (ReplicaCount 0)
 gbIndex       = IndexName "gingerbread"
 postMapping   = MappingName "post"
 server        = Server "http://localhost:9200"
-
 
 mkBulkStream :: S.Records Entity -> S.Records Post -> V.Vector BulkOperation
 mkBulkStream entities = snd . foldr incId (0, V.empty)
@@ -169,23 +163,23 @@ setEntities post xs = post { entities = xs }
 
 handleElastic :: S.Records Entity -> S.Records Post -> BH IO ()
 handleElastic entities posts = do
-  liftIO $ putStrLn "resetting index"
-  _ <- deleteIndex gbIndex
-  _ <- createIndex indexSettings gbIndex
-  _ <- putMapping gbIndex postMapping PostMapping
-  liftIO $ putStrLn "posting to elasticsearch"
-  _ <- bulk $ mkBulkStream entities posts
-  _ <- refreshIndex gbIndex
-  liftIO $ putStrLn "done"
+  deleteIndex gbIndex
+  createIndex indexSettings gbIndex
+  putMapping gbIndex postMapping PostMapping
+
+  liftIO $ putStrLn "posting data to elasticsearch"
+  bulk $ mkBulkStream entities posts
+  refreshIndex gbIndex
+  return ()
 
 main :: IO ()
 main = do
   csvsPath <- head <$> getArgs
   x <- BL.readFile $ csvsPath <> "gb-forum.csv"
   y <- BL.readFile $ csvsPath <> "gb-forum-entities.csv"
-  case S.decodeByName x of
-    Left err         -> putStrLn err
-    Right (_, posts) ->
-      case S.decodeByName y of
-        Left err            -> putStrLn err
-        Right (_, entities) -> runBH' $ handleElastic entities posts
+  runExceptT $ do
+    (_, posts)    <- lift $ S.decodeByName x
+    (_, entities) <- lift $ S.decodeByName y
+    liftIO . runBH' $ handleElastic entities posts
+  putStrLn "done"
+  where lift = ExceptT . return
