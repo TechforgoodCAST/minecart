@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
@@ -27,28 +28,37 @@ import           Network.HTTP.Client        (defaultManagerSettings)
 import           System.Environment         (getArgs)
 import           Text.Trifecta              (Parser, Result (..), char, integer,
                                              parseString, string, try)
+
 data Post =
   Post {
-    userId    :: Int
-  , topicId   :: Int
-  , forumId   :: Int
-  , messageId :: Int
-  , username  :: Text
-  , subject   :: Text
-  , body      :: Text
-  , date      :: Maybe Day
-  , visible   :: Bool
-  , moderated :: Bool
-  , entities  :: [Entity]
+    userId                     :: Int
+  , topicId                    :: Int
+  , forumId                    :: Int
+  , messageId                  :: Int
+  , username                   :: Text
+  , subject                    :: Text
+  , body                       :: Text
+  , date                       :: Maybe Day
+  , visible                    :: Bool
+  , moderated                  :: Bool
+  , documentSentimentScore     :: Double
+  , documentSentimentMagnitude :: Double
+  , entities                   :: [Entity]
   } deriving (Eq, Show, Generic)
 
 data Entity =
   Entity {
-    messageId'         :: Int
-  , name               :: String
-  , salience           :: Double
-  , sentimentMagnitude :: Double
-  , sentimentScore     :: Double
+    name                     :: String
+  , salience                 :: Double
+  , entitySentimentMagnitude :: Double
+  , entitySentimentScore     :: Double
+  } deriving (Eq, Show, Generic)
+
+data Sentence =
+  Sentence {
+    sentence                   :: Text
+  , sentenceSentimentScore     :: Double
+  , sentenceSentimentMagnitude :: Double
   } deriving (Eq, Show, Generic)
 
 instance ToJSON Post
@@ -68,14 +78,39 @@ instance FromNamedRecord Post where
                             <*> (toDay <$> (r .: "CreationDate"))
                             <*> (toBool <$> (r .: "Visible"))
                             <*> (toBool <$> (r .: "Moderated"))
+                            <*> return 0
+                            <*> return 0
                             <*> return []
 
-instance FromNamedRecord Entity where
-  parseNamedRecord r = Entity <$> r .: "MessageId"
-                              <*> r .: "EntityName"
-                              <*> r .: "Salience"
-                              <*> r .: "SentimentMagnitude"
-                              <*> r .: "SentimentScore"
+instance FromNamedRecord (Int, Entity) where
+  -- parseNamedRecord r = Entity <$> r .: "MessageId"
+  --                             <*> r .: "EntityName"
+  --                             <*> r .: "Salience"
+  --                             <*> r .: "SentimentMagnitude"
+  --                             <*> r .: "SentimentScore"
+  parseNamedRecord r = do
+    mId <- r .: "MessageId"
+    n   <- r .: "EntityName"
+    s   <- r .: "Salience"
+    sm  <- r .: "SentimentMagnitude"
+    ss  <- r .: "SentimentScore"
+    return (mId, Entity n s sm ss)
+
+instance FromNamedRecord (Int, Double, Double, Sentence) where
+  -- 'MessageId',
+  -- 'DocumentSentimentScore',
+  -- 'DocumentSentimentMagnitude',
+  -- 'Sentence',
+  -- 'SentenceSentimentScore',
+  -- 'SentenceSentimentMagnitude'
+  parseNamedRecord r = do
+    mId <- r .: "MessageId"
+    dss <- r .: "DocumentSentimentScore"
+    sdm <- r .: "DocumentSentimentMagnitude"
+    s   <- r .: "Sentence"
+    ss  <- r .: "SentenceSentimentScore"
+    ssm <- r .: "SentenceSentimentMagnitude"
+    return (mId, dss, sdm, Sentence s ss ssm)
 
 data PostMapping = PostMapping
 
@@ -91,7 +126,7 @@ instance ToJSON PostMapping where
           , "topidId"   `ofType` "integer"
           , "forumId"   `ofType` "integer"
           , "messageId" `ofType` "integer"
-          , "username"  `ofType` "integer"
+          , "username"  `ofType` "keyword"
           , "subject"   `ofType` "text"
           , "body"      `ofType` "text"
           , "date"      `ofType` "date"
@@ -143,7 +178,7 @@ gbIndex       = IndexName "gingerbread"
 postMapping   = MappingName "post"
 server        = Server "http://localhost:9200"
 
-mkBulkStream :: S.Records Entity -> S.Records Post -> V.Vector BulkOperation
+mkBulkStream :: S.Records (Int, Entity) -> S.Records Post -> V.Vector BulkOperation
 mkBulkStream entities = snd . foldr incId (0, V.empty)
   where
     enMap = messageEntities entities
@@ -154,14 +189,14 @@ mkBulkOperation n enMap post = BulkIndex gbIndex postMapping (DocId . pack $ sho
   where
     updatedPost = setEntities post . fromMaybe [] . IM.lookup (messageId post) $ enMap
 
-messageEntities :: S.Records Entity -> IM.IntMap [Entity]
+messageEntities :: S.Records (Int, Entity) -> IM.IntMap [Entity]
 messageEntities = foldr accum IM.empty
-  where accum a = IM.insertWith (++) (messageId' a) [a]
+  where accum (mId, a) = IM.insertWith (++) mId [a]
 
 setEntities :: Post -> [Entity] -> Post
 setEntities post xs = post { entities = xs }
 
-handleElastic :: S.Records Entity -> S.Records Post -> BH IO ()
+handleElastic :: S.Records (Int, Entity) -> S.Records Post -> BH IO ()
 handleElastic entities posts = do
   deleteIndex gbIndex
   createIndex indexSettings gbIndex
