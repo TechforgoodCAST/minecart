@@ -18,11 +18,7 @@ import           Minecart.Types
 import           Network.HTTP.Client        (defaultManagerSettings)
 import           System.Environment         (getArgs)
 
-runBH'        = withBH defaultManagerSettings server
-indexSettings = IndexSettings (ShardCount 1) (ReplicaCount 0)
-gbIndex       = IndexName "gingerbread"
-postMapping   = MappingName "post"
-server        = Server "http://localhost:9200"
+-- Combine CSV data
 
 mkBulkStream :: S.Records EntityData -> S.Records SentenceData -> S.Records Post -> V.Vector BulkOperation
 mkBulkStream entities sentences = snd . foldr incId (0, V.empty)
@@ -51,6 +47,13 @@ entitiesMap = foldr accum IM.empty
   where
     accum (mId, a) = IM.insertWith (++) mId [a]
 
+sentencesMap :: S.Records SentenceData -> IM.IntMap [(SentimentScore, SentimentMagnitude, Sentence)]
+sentencesMap = foldr accum IM.empty
+  where
+    accum (mId, ss, sm, a) = IM.insertWith (++) mId [(ss, sm, a)]
+
+-- Lenses
+
 setEntities :: [Entity] -> Post -> Post
 setEntities xs post = post { entities = xs }
 
@@ -58,19 +61,16 @@ getSentiment :: [(SentimentScore, SentimentMagnitude, Sentence)] -> (SentimentSc
 getSentiment [] = (0, 0)
 getSentiment xs = (\(ss, sm, _) -> (ss, sm)) . head $ xs
 
-sentencesMap :: S.Records SentenceData -> IM.IntMap [(SentimentScore, SentimentMagnitude, Sentence)]
-sentencesMap = foldr accum IM.empty
-  where
-    accum (mId, ss, sm, a) = IM.insertWith (++) mId [(ss, sm, a)]
-
 setSentences :: [Sentence] -> Post -> Post
 setSentences xs post = post { sentences = xs }
 
 setSentiment :: (SentimentScore, SentimentMagnitude) -> Post -> Post
-setSentiment (ss, sm) post = post {
-    documentSentimentScore = ss
+setSentiment (ss, sm) post = post
+  { documentSentimentScore = ss
   , documentSentimentMagnitude = sm
   }
+
+-- Elasticsearch
 
 handleElastic :: S.Records EntityData -> S.Records SentenceData -> S.Records Post -> BH IO ()
 handleElastic entities sentences posts = do
@@ -87,6 +87,12 @@ resetIndex = do
   createIndex indexSettings gbIndex
   putMapping gbIndex postMapping PostMapping
   return ()
+
+runBH'        = withBH defaultManagerSettings server
+indexSettings = IndexSettings (ShardCount 1) (ReplicaCount 0)
+gbIndex       = IndexName "gingerbread"
+postMapping   = MappingName "post"
+server        = Server "http://localhost:9200"
 
 main :: IO ()
 main = do
