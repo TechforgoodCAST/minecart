@@ -27,16 +27,16 @@ mkBulkStream entities sentences = snd . foldr incId (0, V.empty)
     enMap = entitiesMap entities
     sMap  = sentencesMap sentences
 
-mkBulkOperation :: MessageId -> IM.IntMap [Entity] -> IM.IntMap [(SentimentScore, SentimentMagnitude, Sentence)] -> Post -> BulkOperation
+mkBulkOperation :: PostId -> IM.IntMap [Entity] -> IM.IntMap [(SentimentScore, SentimentMagnitude, Sentence)] -> Post -> BulkOperation
 mkBulkOperation n enMap sMap post = BulkIndex gbIndex postMapping (DocId . pack $ show n) $ toJSON updatedPost
   where
     updatedPost = updatePost n enMap sMap post
 
-updatePost :: MessageId -> IM.IntMap [Entity] -> IM.IntMap [(SentimentScore, SentimentMagnitude, Sentence)] -> Post -> Post
+updatePost :: PostId -> IM.IntMap [Entity] -> IM.IntMap [(SentimentScore, SentimentMagnitude, Sentence)] -> Post -> Post
 updatePost n enMap sMap post = fromMaybe post $ do
-  let mId = messageId post
-  es <- IM.lookup mId enMap
-  ss <- IM.lookup mId sMap
+  let pId = postId post
+  es <- IM.lookup pId enMap
+  ss <- IM.lookup pId sMap
   let ss' = thrd <$> ss
       sn  = getSentiment ss
       thrd (a, b, c) = c
@@ -45,12 +45,12 @@ updatePost n enMap sMap post = fromMaybe post $ do
 entitiesMap :: S.Records EntityData -> IM.IntMap [Entity]
 entitiesMap = foldr accum IM.empty
   where
-    accum (mId, a) = IM.insertWith (++) mId [a]
+    accum (pId, a) = IM.insertWith (++) pId [a]
 
 sentencesMap :: S.Records SentenceData -> IM.IntMap [(SentimentScore, SentimentMagnitude, Sentence)]
 sentencesMap = foldr accum IM.empty
   where
-    accum (mId, ss, sm, a) = IM.insertWith (++) mId [(ss, sm, a)]
+    accum (pId, ss, sm, a) = IM.insertWith (++) pId [(ss, sm, a)]
 
 -- Lenses
 
@@ -74,7 +74,7 @@ setSentiment (ss, sm) post = post
 
 handleElastic :: S.Records EntityData -> S.Records SentenceData -> S.Records Post -> BH IO ()
 handleElastic entities sentences posts = do
-  -- resetIndex
+  resetIndex
   liftIO $ putStrLn "posting data to elasticsearch"
   bulk $ mkBulkStream entities sentences posts
   refreshIndex gbIndex

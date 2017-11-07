@@ -11,14 +11,13 @@ import Data.Time
 import GHC.Generics     (Generic)
 import Minecart.Parsers
 
-type MessageId = Int
+type PostId = Int
 
 data Post =
   Post {
-    userId                     :: Int
-  , topicId                    :: Int
-  , forumId                    :: Int
-  , messageId                  :: MessageId
+    postId                     :: PostId
+  , threadId                   :: Int
+  , userId                     :: Int
   , username                   :: Text
   , subject                    :: Text
   , body                       :: Text
@@ -31,7 +30,7 @@ data Post =
   , sentences                  :: [Sentence]
   } deriving (Eq, Show, Generic)
 
-type EntityData = (MessageId, Entity)
+type EntityData = (PostId, Entity)
 
 data Entity =
   Entity {
@@ -43,7 +42,7 @@ data Entity =
 
 type SentimentScore = Double
 type SentimentMagnitude = Double
-type SentenceData = (MessageId, SentimentScore, SentimentMagnitude, Sentence)
+type SentenceData = (PostId, SentimentScore, SentimentMagnitude, Sentence)
 
 data Sentence =
   Sentence {
@@ -62,16 +61,15 @@ instance ToJSON Sentence
 instance FromJSON Sentence
 
 instance FromNamedRecord Post where
-  parseNamedRecord r = Post <$> r .: "UserID"
-                            <*> r .: "TopicID"
-                            <*> r .: "ForumID"
-                            <*> r .: "MessageID"
-                            <*> r .: "UserName"
-                            <*> r .: "Subject"
-                            <*> r .: "Body"
-                            <*> (toDay <$> (r .: "CreationDate"))
-                            <*> (toBool <$> (r .: "Visible"))
-                            <*> (toBool <$> (r .: "Moderated"))
+  parseNamedRecord r = Post <$> r .: "post_id"
+                            <*> r .: "thread_id"
+                            <*> r .: "user_id"
+                            <*> r .: "username"
+                            <*> r .: "subject"
+                            <*> r .: "body"
+                            <*> (toDay <$> (r .: "date"))
+                            <*> (toBool <$> (r .: "visible"))
+                            <*> (toBool <$> (r .: "moderated"))
                             <*> return 0
                             <*> return 0
                             <*> return []
@@ -79,21 +77,21 @@ instance FromNamedRecord Post where
 
 instance FromNamedRecord (Int, Entity) where
   parseNamedRecord r = do
-    mId <- r .: "MessageId"
-    n   <- r .: "EntityName"
-    s   <- r .: "Salience"
-    sm  <- r .: "SentimentMagnitude"
-    ss  <- r .: "SentimentScore"
+    mId <- r .: "post_id"
+    n   <- r .: "entity_name"
+    s   <- r .: "salience"
+    sm  <- r .: "sentiment_magnitude"
+    ss  <- r .: "sentiment_score"
     return (mId, Entity n s sm ss)
 
 instance FromNamedRecord (Int, Double, Double, Sentence) where
   parseNamedRecord r = do
-    mId <- r .: "MessageId"
-    dss <- r .: "DocumentSentimentScore"
-    sdm <- r .: "DocumentSentimentMagnitude"
-    s   <- r .: "Sentence"
-    ss  <- r .: "SentenceSentimentScore"
-    ssm <- r .: "SentenceSentimentMagnitude"
+    mId <- r .: "post_id"
+    dss <- r .: "document_sentiment_score"
+    sdm <- r .: "document_sentiment_magnitude"
+    s   <- r .: "sentence"
+    ss  <- r .: "sentence_sentiment_score"
+    ssm <- r .: "sentence_sentiment_magnitude"
     return (mId, dss, sdm, Sentence s ss ssm)
 
 data PostMapping = PostMapping
@@ -103,10 +101,9 @@ instance ToJSON PostMapping where
     object
       [ "properties" .=
           object [
-            "userId"                     `ofType` "long"
-          , "topidId"                    `ofType` "long"
-          , "forumId"                    `ofType` "long"
-          , "messageId"                  `ofType` "long"
+            "postId"                     `ofType` "integer"
+          , "userId"                     `ofType` "integer"
+          , "threadId"                   `ofType` "integer"
           , "username"                   `ofType` "keyword"
           , "subject"                    `ofType` "text"
           , "body"                       `ofType` "text"
