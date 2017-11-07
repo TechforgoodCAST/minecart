@@ -103,17 +103,20 @@ instance ToJSON PostMapping where
     object
       [ "properties" .=
           object [
-            "userId"    `ofType` "integer"
-          , "topidId"   `ofType` "integer"
-          , "forumId"   `ofType` "integer"
-          , "messageId" `ofType` "integer"
-          , "username"  `ofType` "keyword"
-          , "subject"   `ofType` "text"
-          , "body"      `ofType` "text"
-          , "date"      `ofType` "date"
-          , "visible"   `ofType` "visible"
-          , "moderated" `ofType` "moderated"
-          , "entities"  `ofType` "nested"
+            "userId"                     `ofType` "long"
+          , "topidId"                    `ofType` "long"
+          , "forumId"                    `ofType` "long"
+          , "messageId"                  `ofType` "long"
+          , "username"                   `ofType` "keyword"
+          , "subject"                    `ofType` "text"
+          , "body"                       `ofType` "text"
+          , "date"                       `ofType` "date"
+          , "visible"                    `ofType` "visible"
+          , "moderated"                  `ofType` "moderated"
+          , "documentSentimentScore"     `ofType` "long"
+          , "documentSentimentMagnitude" `ofType` "long"
+          , "entities"                   `ofType` "nested"
+          , "sentences"                  `ofType` "nested"
           ]
       ]
     where ofType k x = k .= object ["type" .= (x :: Text)]
