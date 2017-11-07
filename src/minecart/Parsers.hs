@@ -10,6 +10,7 @@ import Text.Trifecta        (Parser, Result (..), char, integer, parseString,
 
 toBool :: ByteString -> Bool
 toBool "TRUE"  = True
+toBool "true"  = True
 toBool "FALSE" = False
 toBool _       = False
 
