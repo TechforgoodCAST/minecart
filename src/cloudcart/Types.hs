@@ -51,6 +51,9 @@ data Entity =
   , entitySentimentMagnitude :: Double
   } deriving Show
 
+
+data SentenceMeta = SentenceMeta Int Double Double Sentence
+
 data Sentence =
   Sentence {
     sentence                   :: Text
@@ -107,8 +110,8 @@ instance ToRecord Entity where
            , toField ess
            ]
 
-instance ToRecord (Int, Double, Double, Sentence) where
-  toRecord (pId, dss, dsm, Sentence s sss ssm) =
+instance ToRecord SentenceMeta where
+  toRecord (SentenceMeta pId dss dsm (Sentence s sss ssm)) =
     record [ toField pId
            , toField dss
            , toField dsm
