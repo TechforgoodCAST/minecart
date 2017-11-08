@@ -8,6 +8,7 @@ import           Control.Monad.IO.Class (liftIO)
 import           Data.Aeson
 import           Data.ByteString.Lazy   (ByteString)
 import qualified Data.ByteString.Lazy   as BL
+import           Data.Csv               (ToRecord)
 import qualified Data.Csv               as C
 import qualified Data.Csv.Streaming     as S
 import           Data.Monoid            ((<>))
@@ -27,7 +28,7 @@ storeEntities = storeGoogleData $ mkGooglePipe googleEntityRequest
 storeSentiments :: Foldable f => GoogleConfig -> f Post -> Effect IO ()
 storeSentiments = storeGoogleData $ mkGooglePipe googleSentimentRequest
 
-storeGoogleData :: (Foldable f, C.ToRecord a)
+storeGoogleData :: (Foldable f, ToRecord a)
                 => (GoogleConfig -> GooglePipe a)
                 -> GoogleConfig
                 -> f Post
@@ -37,7 +38,7 @@ storeGoogleData googlePipe config posts =
     >-> googlePipe config
     >-> writeToCsv config
 
-writeToCsv :: C.ToRecord a => GoogleConfig -> Consumer [a] IO ()
+writeToCsv :: ToRecord a => GoogleConfig -> Consumer [a] IO ()
 writeToCsv config = forever $ do
   let newFile = outputPath config <> outputFile (requestType config)
   await >>= (liftIO . BL.appendFile newFile . C.encode)
@@ -46,7 +47,7 @@ outputFile :: GoogleRequestType -> String
 outputFile EntitySentimentAnalysis = "gb-forum-entities.csv"
 outputFile SentimentAnalysis       = "gb-forum-sentiments.csv"
 
-mkGooglePipe :: C.ToRecord a
+mkGooglePipe :: ToRecord a
              => (GoogleConfig -> Post -> IO [a])
              -> GoogleConfig
              -> GooglePipe a
@@ -62,7 +63,7 @@ googleSentimentRequest = transformGoogleResponse setSentenceData
   where
     setSentenceData n (Sentences _ dss dsm xs) = map (SentenceMeta n dss dsm) xs
 
-transformGoogleResponse :: (FromJSON a, C.ToRecord b) => (Int -> a -> [b]) -> GoogleConfig -> Post -> IO [b]
+transformGoogleResponse :: (FromJSON a, ToRecord b) => (Int -> a -> [b]) -> GoogleConfig -> Post -> IO [b]
 transformGoogleResponse transformF config post = do
   res <- googleRequest config post
   return $ transformF (postId post) res

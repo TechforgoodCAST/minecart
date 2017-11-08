@@ -24,7 +24,6 @@ executable minecart
                      , cassava
                      , containers
                      , http-client
-                     , pipes
                      , text
                      , time
                      , transformers

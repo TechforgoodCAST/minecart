@@ -6,7 +6,7 @@ module Cloudcart.Types where
 import           Control.Monad  (mzero)
 import           Data.Aeson
 import           Data.Csv       hiding ((.:), (.=))
-import qualified Data.Csv       as Csv
+import qualified Data.Csv       as C
 import           Data.Text.Lazy (Text)
 
 data GoogleConfig =
@@ -98,8 +98,8 @@ instance FromJSON Sentence where
 
 instance FromNamedRecord Post where
   parseNamedRecord r =
-    Post <$> r Csv..: "post_id"
-         <*> r Csv..: "body"
+    Post <$> r C..: "post_id"
+         <*> r C..: "body"
 
 instance ToRecord Entity where
   toRecord (Entity pId n s esm ess) =
