@@ -5,7 +5,7 @@
 module Minecart.Types where
 
 import Data.Aeson       (FromJSON, ToJSON, object, toJSON, (.=))
-import Data.Csv         hiding (Parser, (.=))
+import Data.Csv         hiding ((.=))
 import Data.Text.Lazy
 import Data.Time
 import GHC.Generics     (Generic)

@@ -14,6 +14,8 @@ extra-source-files:  README.md
 executable minecart
   hs-source-dirs:      src
   main-is:             Minecart.hs
+  other-modules:       Minecart.Types
+                     , Minecart.Parsers
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
                      , aeson
@@ -32,13 +34,13 @@ executable minecart
 executable cloudcart
   hs-source-dirs:      src
   main-is:             Cloudcart.hs
+  other-modules:       Cloudcart.Types
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
+                     , aeson
                      , bytestring
                      , cassava
                      , containers
-                     , http-client
+                     , http-conduit
                      , pipes
                      , text
-                     , transformers
-                     , vector
