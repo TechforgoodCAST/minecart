@@ -17,6 +17,7 @@ import           Database.V5.Bloodhound
 import           Minecart.Types
 import           Network.HTTP.Client        (defaultManagerSettings)
 import           System.Environment         (getArgs)
+import           System.Exit                (exitFailure, exitSuccess)
 
 -- Combine CSV data
 
@@ -72,6 +73,12 @@ setSentiment (ss, sm) post = post
 
 -- Elasticsearch
 
+runBH'        = withBH defaultManagerSettings server
+indexSettings = IndexSettings (ShardCount 1) (ReplicaCount 0)
+gbIndex       = IndexName "gingerbread"
+postMapping   = MappingName "post"
+server        = Server "http://localhost:9200"
+
 handleElastic :: S.Records EntityData -> S.Records SentenceData -> S.Records Post -> BH IO ()
 handleElastic entities sentences posts = do
   resetIndex
@@ -88,15 +95,18 @@ resetIndex = do
   putMapping gbIndex postMapping PostMapping
   return ()
 
-runBH'        = withBH defaultManagerSettings server
-indexSettings = IndexSettings (ShardCount 1) (ReplicaCount 0)
-gbIndex       = IndexName "gingerbread"
-postMapping   = MappingName "post"
-server        = Server "http://localhost:9200"
+getCsvsPath :: IO String
+getCsvsPath = do
+  args <- getArgs
+  if null args then do
+    putStrLn "Please pass the path to the folder of the 3 csv files as a command line arg"
+    exitFailure
+  else
+    return $ head args
 
-main :: IO ()
-main = do
-  csvsPath <- head <$> getArgs
+combineCsvs :: IO ()
+combineCsvs = do
+  csvsPath <- getCsvsPath
   x <- BL.readFile $ csvsPath <> "gb-forum.csv"
   y <- BL.readFile $ csvsPath <> "gb-forum-entities.csv"
   z <- BL.readFile $ csvsPath <> "gb-forum-sentiments.csv"
@@ -106,4 +116,8 @@ main = do
     (_, sentences) <- lift $ S.decodeByName z
     liftIO . runBH' $ handleElastic entities sentences posts
   putStrLn "done"
+  exitSuccess
   where lift = ExceptT . return
+
+main :: IO ()
+main = combineCsvs

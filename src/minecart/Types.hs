@@ -5,7 +5,7 @@
 module Minecart.Types where
 
 import Data.Aeson       (FromJSON, ToJSON, object, toJSON, (.=))
-import Data.Csv         hiding (Parser, (.=))
+import Data.Csv         hiding ((.=))
 import Data.Text.Lazy
 import Data.Time
 import GHC.Generics     (Generic)
@@ -61,19 +61,20 @@ instance ToJSON Sentence
 instance FromJSON Sentence
 
 instance FromNamedRecord Post where
-  parseNamedRecord r = Post <$> r .: "post_id"
-                            <*> r .: "thread_id"
-                            <*> r .: "user_id"
-                            <*> r .: "username"
-                            <*> r .: "subject"
-                            <*> r .: "body"
-                            <*> (toDay <$> (r .: "date"))
-                            <*> (toBool <$> (r .: "visible"))
-                            <*> (toBool <$> (r .: "moderated"))
-                            <*> return 0
-                            <*> return 0
-                            <*> return []
-                            <*> return []
+  parseNamedRecord r =
+    Post <$> r .: "post_id"
+         <*> r .: "thread_id"
+         <*> r .: "user_id"
+         <*> r .: "username"
+         <*> r .: "subject"
+         <*> r .: "body"
+         <*> (toDay <$> (r .: "date"))
+         <*> (toBool <$> (r .: "visible"))
+         <*> (toBool <$> (r .: "moderated"))
+         <*> return 0
+         <*> return 0
+         <*> return []
+         <*> return []
 
 instance FromNamedRecord (Int, Entity) where
   parseNamedRecord r = do
