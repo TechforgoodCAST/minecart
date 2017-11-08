@@ -11,21 +11,21 @@ import           Data.ByteString.Lazy   (ByteString)
 import qualified Data.ByteString.Lazy   as BL
 import qualified Data.Csv               as C
 import qualified Data.Csv.Streaming     as S
-import           Data.Foldable          (toList)
 import           Data.Monoid            ((<>))
 import           Data.Text.Lazy         (Text)
 import           Network.HTTP.Simple
 import           Pipes
 import           System.Environment     (getArgs, lookupEnv)
-import           System.Exit
+import           System.Exit            (exitFailure, exitSuccess)
 
-wholeShebang :: Foldable f => String -> f Post -> Effect IO ()
-wholeShebang apiKey posts = each posts >-> googlePipe apiKey >-> writeToCsv
+storeGoogleResponses :: Foldable f => String -> f Post -> Effect IO ()
+storeGoogleResponses apiKey posts =
+    each posts
+      >-> googlePipe apiKey
+      >-> writeToCsv
 
 writeToCsv :: Consumer [Entity] IO ()
-writeToCsv = forever $ do
-  es <- await
-  liftIO . BL.appendFile "./new-data.csv" $ C.encode es
+writeToCsv = forever $ await >>= (liftIO . BL.appendFile "./new-data.csv" . C.encode)
 
 googlePipe :: String -> Pipe Post [Entity] IO ()
 googlePipe apiKey = forever $ await >>= (liftIO . googleRequest apiKey) >>= yield
@@ -65,8 +65,11 @@ decodeForum = do
   apiKey  <- getApiKey
   x <- BL.readFile $ csvPath <> "gb-forum.csv"
   case S.decodeByName x of
-    Left err         -> print err
-    Right (_, posts) -> runEffect . wholeShebang apiKey . take 2 . toList $ posts
+    Left err         -> print err >> exitFailure
+    Right (_, posts) -> do
+      runEffect $ storeGoogleResponses apiKey posts
+      putStrLn "done"
+      exitSuccess
 
 main :: IO ()
 main = decodeForum

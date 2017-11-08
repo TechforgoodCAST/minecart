@@ -40,7 +40,6 @@ executable cloudcart
                      , aeson
                      , bytestring
                      , cassava
-                     , containers
                      , http-conduit
                      , pipes
                      , text
