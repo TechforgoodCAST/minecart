@@ -113,24 +113,24 @@ getCsvPath = do
   else
     return $ head args
 
-requestHandler :: Foldable f => GoogleConfig -> f Post -> IO ()
-requestHandler config@(GoogleConfig _ reqType _) posts =
-  let runner ef = runReaderT (runEffect ef) config
-  in
+requestHandler :: Foldable f => f Post -> Effect GoogleReader ()
+requestHandler posts = do
+  reqType <- requestType <$> lift ask
   case reqType of
-    EntitySentimentAnalysis -> runner $ storeEntities posts
-    SentimentAnalysis       -> runner $ storeSentiments posts
+    EntitySentimentAnalysis -> storeEntities posts
+    SentimentAnalysis       -> storeSentiments posts
 
 collectGoogleCloudData :: IO ()
 collectGoogleCloudData = do
   csvPath <- getCsvPath
   apiKey  <- getApiKey
-  let config = GoogleConfig apiKey SentimentAnalysis csvPath
-  x <- BL.readFile $ csvPath <> "gb-forum.csv"
-  case S.decodeByName x of
+  forum   <- BL.readFile $ csvPath <> "gb-forum.csv"
+  let config    = GoogleConfig apiKey SentimentAnalysis csvPath
+      runner ef = runReaderT (runEffect ef) config
+  case S.decodeByName forum of
     Left err         -> print err >> exitFailure
     Right (_, posts) -> do
-      requestHandler config posts
+      runner (requestHandler posts)
       putStrLn "done"
       exitSuccess
 
