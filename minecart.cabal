@@ -42,3 +42,4 @@ executable cloudcart
                      , http-conduit
                      , pipes
                      , text
+                     , transformers
