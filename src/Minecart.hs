@@ -104,8 +104,8 @@ getCsvsPath = do
   else
     return $ head args
 
-main :: IO ()
-main = do
+combineCsvs :: IO ()
+combineCsvs = do
   csvsPath <- getCsvsPath
   x <- BL.readFile $ csvsPath <> "gb-forum.csv"
   y <- BL.readFile $ csvsPath <> "gb-forum-entities.csv"
@@ -118,3 +118,6 @@ main = do
   putStrLn "done"
   exitSuccess
   where lift = ExceptT . return
+
+main :: IO ()
+main = combineCsvs
