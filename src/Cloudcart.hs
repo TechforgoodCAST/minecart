@@ -22,15 +22,15 @@ import           System.Exit
 wholeShebang :: Foldable f => String -> f Post -> Effect IO ()
 wholeShebang apiKey posts = each posts >-> googlePipe apiKey >-> writeToCsv
 
-writeToCsv :: Consumer Entities IO ()
+writeToCsv :: Consumer [Entity] IO ()
 writeToCsv = forever $ do
-  (Entities e) <- await
-  liftIO . BL.appendFile "./new-data.csv" $ C.encode e
+  es <- await
+  liftIO . BL.appendFile "./new-data.csv" $ C.encode es
 
-googlePipe :: String -> Pipe Post Entities IO ()
+googlePipe :: String -> Pipe Post [Entity] IO ()
 googlePipe apiKey = forever $ await >>= (liftIO . googleRequest apiKey) >>= yield
 
-googleRequest :: String -> Post -> IO Entities
+googleRequest :: String -> Post -> IO [Entity]
 googleRequest apiKey post = do
   let rawR  = "POST https://language.googleapis.com/v1/documents:analyzeEntitySentiment?key=" <> apiKey
       body' = setRequestBodyJSON . GoogleRequest $ body post
@@ -38,8 +38,8 @@ googleRequest apiKey post = do
   res <- httpJSON req
   return . setPostId (postId post) $ getResponseBody res
 
-setPostId :: Int -> Entities -> Entities
-setPostId n (Entities xs) = Entities $ map (\e -> e { entityPostId = n }) xs
+setPostId :: Int -> [Entity] -> [Entity]
+setPostId n = map (\e -> e { entityPostId = n })
 
 getApiKey :: IO String
 getApiKey = do

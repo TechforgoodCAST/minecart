@@ -35,37 +35,49 @@ data Entity =
     entityPostId             :: Int
   , name                     :: String
   , salience                 :: Double
-  , entitySentimentMagnitude :: Double
   , entitySentimentScore     :: Double
+  , entitySentimentMagnitude :: Double
   } deriving Show
 
 data Sentence =
   Sentence {
     sentencePostId             :: Int
+  , sentence                   :: Text
   , documentSentimentScore     :: Double
   , documentSentimentMagnitude :: Double
-  , sentence                   :: Text
   , sentenceSentimentScore     :: Double
   , sentenceSentimentMagnitude :: Double
   } deriving Show
 
-newtype Entities = Entities [Entity] deriving Show
-
-instance FromJSON Entities where
-  parseJSON (Object v) = Entities <$> (v .: "entities")
-  parseJSON _          = mzero
-
 instance FromJSON Entity where
-  parseJSON (Object v) = Entity <$> return 0
-                                <*> v .: "name"
-                                <*> v .: "salience"
-                                <*> ((v .: "sentiment") >>= (.: "magnitude"))
-                                <*> ((v .: "sentiment") >>= (.: "score"))
+  parseJSON (Object v) =
+    let ePath = v .: "entities"
+    in
+    Entity <$> return 0
+           <*> (ePath >>= (.: "name"))
+           <*> (ePath >>= (.: "salience"))
+           <*> (ePath >>= (.: "sentiment") >>= (.: "score"))
+           <*> (ePath >>= (.: "sentiment") >>= (.: "magnitude"))
   parseJSON _ = mzero
 
+
+instance FromJSON Sentence where
+  parseJSON (Object v) =
+    let sPath = v .: "sentences"
+        dPath = v .: "documentSentiment"
+    in
+    Sentence <$> return 0
+             <*> (sPath >>= (.: "text") >>= (.: "content"))
+             <*> (dPath >>= (.: "score"))
+             <*> (dPath >>= (.: "magnitude"))
+             <*> (sPath >>= (.: "sentiment") >>= (.: "score"))
+             <*> (sPath >>= (.: "sentiment") >>= (.: "magnitude"))
+
+
 instance FromNamedRecord Post where
-  parseNamedRecord r = Post <$> r Csv..: "post_id"
-                            <*> r Csv..: "body"
+  parseNamedRecord r =
+    Post <$> r Csv..: "post_id"
+         <*> r Csv..: "body"
 
 instance ToRecord Entity where
   toRecord (Entity pId n s esm ess) =
