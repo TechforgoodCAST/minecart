@@ -4,7 +4,7 @@ module Main where
 
 import           Cloudcart.Types
 import           Control.Concurrent     (threadDelay)
-import           Control.Monad          (forever, mapM_)
+import           Control.Monad          (forever)
 import           Control.Monad.IO.Class (liftIO)
 import           Data.Aeson
 import           Data.ByteString.Lazy   (ByteString)
@@ -18,28 +18,33 @@ import           Pipes
 import           System.Environment     (getArgs, lookupEnv)
 import           System.Exit            (exitFailure, exitSuccess)
 
-storeGoogleResponses :: Foldable f => String -> f Post -> Effect IO ()
-storeGoogleResponses apiKey posts =
+storeGoogleResponses :: Foldable f => GoogleConfig -> f Post -> Effect IO ()
+storeGoogleResponses config posts =
     each posts
-      >-> googlePipe apiKey
-      >-> writeToCsv
+      >-> googlePipe config
+      >-> writeToCsv config
 
-writeToCsv :: Consumer [Entity] IO ()
-writeToCsv = forever $ await >>= (liftIO . BL.appendFile "./new-data.csv" . C.encode)
+writeToCsv :: GoogleConfig -> Consumer [Entity] IO ()
+writeToCsv config = forever $ do
+  let newFile = outputPath config <> "gb-forum-entities.csv"
+  await >>= (liftIO . BL.appendFile newFile . C.encode)
 
-googlePipe :: String -> Pipe Post [Entity] IO ()
-googlePipe apiKey = forever $ await >>= (liftIO . googleRequest apiKey) >>= yield
+googlePipe :: GoogleConfig -> Pipe Post [Entity] IO ()
+googlePipe config = forever $ await >>= (liftIO . googleRequest config) >>= yield
 
-googleRequest :: String -> Post -> IO [Entity]
-googleRequest apiKey post = do
-  let rawR  = "POST https://language.googleapis.com/v1/documents:analyzeEntitySentiment?key=" <> apiKey
-      body' = setRequestBodyJSON . GoogleRequest $ body post
+googleRequest :: GoogleConfig -> Post -> IO [Entity]
+googleRequest config post = do
+  let pId   = postId post
+      key   = apiKey config
+      rawR  = "POST https://language.googleapis.com/v1/documents:analyzeEntitySentiment?key=" <> key
+      body' = setRequestBodyJSON . GoogleRequestText $ body post
+  putStrLn $ "fetching data for: " ++ show pId
   req <- body' <$> parseRequest rawR
   res <- httpJSON req
-  return . setPostId (postId post) $ getResponseBody res
+  return . setPostId pId $ getResponseBody res
 
-setPostId :: Int -> [Entity] -> [Entity]
-setPostId n = map (\e -> e { entityPostId = n })
+setPostId :: Int -> Entities -> [Entity]
+setPostId n (Entities xs) = map (\e -> e { entityPostId = n }) xs
 
 getApiKey :: IO String
 getApiKey = do
@@ -63,11 +68,12 @@ decodeForum :: IO ()
 decodeForum = do
   csvPath <- getCsvPath
   apiKey  <- getApiKey
+  let config = GoogleConfig apiKey EntitySentimentAnalysis csvPath
   x <- BL.readFile $ csvPath <> "gb-forum.csv"
   case S.decodeByName x of
     Left err         -> print err >> exitFailure
     Right (_, posts) -> do
-      runEffect $ storeGoogleResponses apiKey posts
+      runEffect $ storeGoogleResponses config posts
       putStrLn "done"
       exitSuccess
 

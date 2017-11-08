@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Cloudcart.Types where
@@ -8,10 +9,21 @@ import           Data.Csv       hiding ((.:), (.=))
 import qualified Data.Csv       as Csv
 import           Data.Text.Lazy (Text)
 
-newtype GoogleRequest = GoogleRequest Text
+data GoogleConfig =
+  GoogleConfig {
+    apiKey      :: String
+  , requestType :: GoogleRequestType
+  , outputPath  :: String
+  }
 
-instance ToJSON GoogleRequest where
-  toJSON (GoogleRequest text) =
+data GoogleRequestType =
+    EntitySentimentAnalysis
+  | SentimentAnalysis
+
+newtype GoogleRequestText = GoogleRequestText Text
+
+instance ToJSON GoogleRequestText where
+  toJSON (GoogleRequestText text) =
     object [
       "encodingType" .= encoding
     , "document"     .= object [
@@ -41,38 +53,45 @@ data Entity =
 
 data Sentence =
   Sentence {
-    sentencePostId             :: Int
-  , sentence                   :: Text
-  , documentSentimentScore     :: Double
-  , documentSentimentMagnitude :: Double
+    sentence                   :: Text
   , sentenceSentimentScore     :: Double
   , sentenceSentimentMagnitude :: Double
   } deriving Show
 
+data Sentences =
+  Sentences {
+    sentencePostId             :: Int
+  , documentSentimentScore     :: Double
+  , documentSentimentMagnitude :: Double
+  , sentences                  :: [Sentence]
+  } deriving Show
+
+newtype Entities = Entities [Entity] deriving Show
+
+instance FromJSON Entities where
+  parseJSON (Object v) = Entities <$> v .: "entities"
+
 instance FromJSON Entity where
   parseJSON (Object v) =
-    let ePath = v .: "entities"
-    in
     Entity <$> return 0
-           <*> (ePath >>= (.: "name"))
-           <*> (ePath >>= (.: "salience"))
-           <*> (ePath >>= (.: "sentiment") >>= (.: "score"))
-           <*> (ePath >>= (.: "sentiment") >>= (.: "magnitude"))
+           <*> v .: "name"
+           <*> v .: "salience"
+           <*> ((v .: "sentiment") >>= (.: "score"))
+           <*> ((v .: "sentiment") >>= (.: "magnitude"))
   parseJSON _ = mzero
 
+instance FromJSON Sentences where
+  parseJSON (Object v) =
+    Sentences <$> return 0
+              <*> ((v .: "documentSentiment") >>= (.: "score"))
+              <*> ((v .: "documentSentiment") >>= (.: "magnitude"))
+              <*> v .: "sentences"
 
 instance FromJSON Sentence where
   parseJSON (Object v) =
-    let sPath = v .: "sentences"
-        dPath = v .: "documentSentiment"
-    in
-    Sentence <$> return 0
-             <*> (sPath >>= (.: "text") >>= (.: "content"))
-             <*> (dPath >>= (.: "score"))
-             <*> (dPath >>= (.: "magnitude"))
-             <*> (sPath >>= (.: "sentiment") >>= (.: "score"))
-             <*> (sPath >>= (.: "sentiment") >>= (.: "magnitude"))
-
+    Sentence <$> ((v .: "text") >>= (.: "content"))
+             <*> ((v .: "sentiment") >>= (.: "score"))
+             <*> ((v .: "sentiment") >>= (.: "magnitude"))
 
 instance FromNamedRecord Post where
   parseNamedRecord r =
@@ -86,4 +105,14 @@ instance ToRecord Entity where
            , toField s
            , toField esm
            , toField ess
+           ]
+
+instance ToRecord (Int, Double, Double, Sentence) where
+  toRecord (pId, dss, dsm, Sentence s sss ssm) =
+    record [ toField pId
+           , toField dss
+           , toField dsm
+           , toField s
+           , toField sss
+           , toField ssm
            ]
