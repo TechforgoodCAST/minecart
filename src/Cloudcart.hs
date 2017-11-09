@@ -9,7 +9,7 @@ import           Control.Monad.Trans.Reader (ReaderT, ask, runReaderT)
 import           Data.Aeson
 import           Data.ByteString.Lazy       (ByteString)
 import qualified Data.ByteString.Lazy       as BL
-import           Data.Csv                   (ToRecord)
+import           Data.Csv                   (DefaultOrdered, ToNamedRecord)
 import qualified Data.Csv                   as C
 import qualified Data.Csv.Streaming         as S
 import           Data.Monoid                ((<>))
@@ -29,7 +29,7 @@ storeEntities = storeGoogleData $ mkGooglePipe googleEntityRequest
 storeSentiments :: Foldable f => f Post -> Effect GoogleReader ()
 storeSentiments = storeGoogleData $ mkGooglePipe googleSentimentRequest
 
-storeGoogleData :: (Foldable f, ToRecord a)
+storeGoogleData :: (Foldable f, ToNamedRecord a, DefaultOrdered a)
                 => Pipe Post [a] GoogleReader ()
                 -> f Post
                 -> Effect GoogleReader ()
@@ -38,17 +38,17 @@ storeGoogleData googlePipe posts =
     >-> googlePipe
     >-> writeToCsv
 
-writeToCsv :: ToRecord a => Consumer [a] GoogleReader ()
+writeToCsv :: (ToNamedRecord a, DefaultOrdered a) => Consumer [a] GoogleReader ()
 writeToCsv = forever $ do
   config <- lift ask
   let newFile = outputPath config <> outputFile (requestType config)
-  await >>= (liftIO . BL.appendFile newFile . C.encode)
+  await >>= (liftIO . BL.appendFile newFile . C.encodeDefaultOrderedByName)
 
 outputFile :: GoogleRequestType -> String
-outputFile EntitySentimentAnalysis = "gb-forum-entities.csv"
-outputFile SentimentAnalysis       = "gb-forum-sentiments.csv"
+outputFile EntityAnalysis    = "gb-forum-entities.csv"
+outputFile SentimentAnalysis = "gb-forum-sentiments.csv"
 
-mkGooglePipe :: ToRecord a
+mkGooglePipe :: ToNamedRecord a
              => (Post -> GoogleReader [a])
              -> Pipe Post [a] GoogleReader ()
 mkGooglePipe googleRequest = forever $ await >>= (lift . googleRequest) >>= yield
@@ -58,12 +58,13 @@ googleEntityRequest = transformGoogleResponse setPostId
   where
     setPostId n (Entities xs) = map (\e -> e { entityPostId = n }) xs
 
-googleSentimentRequest :: Post -> GoogleReader [SentenceMeta]
+googleSentimentRequest :: Post -> GoogleReader [SentenceSentiment]
 googleSentimentRequest = transformGoogleResponse setSentenceData
   where
-    setSentenceData n (Sentences _ dss dsm xs) = map (SentenceMeta n dss dsm) xs
+    setSentenceData n (RawSentimentData _ dss dsm xs) =
+      map (\(RawSentence s sss ssm) -> SentenceSentiment n dss dsm s sss ssm) xs
 
-transformGoogleResponse :: (FromJSON a, ToRecord b)
+transformGoogleResponse :: (FromJSON a, ToNamedRecord b, DefaultOrdered b)
                         => (Int -> a -> [b])
                         -> Post
                         -> GoogleReader [b]
@@ -89,8 +90,8 @@ googleRequest post = do
     return $ getResponseBody res
 
 requestTypeString :: GoogleRequestType -> String
-requestTypeString EntitySentimentAnalysis = "analyzeEntitySentiment"
-requestTypeString SentimentAnalysis       = "analyzeSentiment"
+requestTypeString EntityAnalysis    = "analyzeEntitySentiment"
+requestTypeString SentimentAnalysis = "analyzeSentiment"
 
 
 -- CLI helpers
@@ -117,8 +118,8 @@ requestHandler :: Foldable f => f Post -> Effect GoogleReader ()
 requestHandler posts = do
   reqType <- requestType <$> lift ask
   case reqType of
-    EntitySentimentAnalysis -> storeEntities posts
-    SentimentAnalysis       -> storeSentiments posts
+    EntityAnalysis    -> storeEntities posts
+    SentimentAnalysis -> storeSentiments posts
 
 collectGoogleCloudData :: IO ()
 collectGoogleCloudData = do
@@ -130,7 +131,7 @@ collectGoogleCloudData = do
   case S.decodeByName forum of
     Left err         -> print err >> exitFailure
     Right (_, posts) -> do
-      runner (requestHandler posts)
+      runner $ requestHandler posts
       putStrLn "done"
       exitSuccess
 
