@@ -4,9 +4,9 @@ import           Control.Monad                    (forever)
 import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Reader
 import           Data.Aeson
-import           Data.Int                         (Int64)
+import           Data.Int                         ()
 import           Data.Monoid                      ((<>))
-import           Database.PostgreSQL.Simple.ToRow
+import           Database.PostgreSQL.Simple.ToRow ()
 import qualified Minecart.Database                as DB
 import           Minecart.Types
 import           Network.HTTP.Simple

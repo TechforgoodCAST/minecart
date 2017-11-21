@@ -48,18 +48,18 @@ decodeForum = S.decodeByName <$> BL.readFile "../gb-forum.csv"
 
 collectEntities :: IO ()
 collectEntities = do
-  key   <- loadApiKey
+  k     <- loadApiKey
   conn  <- DB.minecartConn
   posts <- DB.remainingEntityPosts conn
-  let config = GoogleConfig key "analyzeEntitySentiment" conn
+  let config = GoogleConfig k "analyzeEntitySentiment" conn
   Cloud.run config posts
 
 collectSentiments :: IO ()
 collectSentiments = do
-  key    <- loadApiKey
+  k    <- loadApiKey
   conn   <- DB.minecartConn
   posts  <- DB.remainingSentimentPosts conn
-  let config = GoogleConfig key "analyzeSentiment" conn
+  let config = GoogleConfig k "analyzeSentiment" conn
   Cloud.run config posts
 
 loadApiKey :: IO String
@@ -104,10 +104,17 @@ bulkOperation p = BulkIndex gbIndex postMapping (docId p) $ toJSON p
 runBH' :: BH IO a -> IO a
 runBH' = withBH defaultManagerSettings server
 
+indexSettings :: IndexSettings
 indexSettings = IndexSettings (ShardCount 1) (ReplicaCount 0)
-gbIndex       = IndexName "gingerbread"
+
+gbIndex :: IndexName
+gbIndex = IndexName "gingerbread"
+
+postMapping :: MappingName
 postMapping   = MappingName "post"
-server        = Server "http://localhost:9200"
+
+server :: Server
+server = Server "http://localhost:9200"
 
 
 -- Combine All Data

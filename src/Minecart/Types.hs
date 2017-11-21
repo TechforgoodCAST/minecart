@@ -5,16 +5,16 @@ module Minecart.Types where
 
 import           Control.Monad                      (mzero)
 import           Data.Aeson
+import           Data.ByteString.Char8              (ByteString, unpack)
 import           Data.Csv                           hiding (toField, (.:), (.=))
 import qualified Data.Csv                           as C
-import           Data.Text.Lazy
+import           Data.Text.Lazy                     (Text)
 import           Data.Time
 import           Database.PostgreSQL.Simple         (Connection)
 import           Database.PostgreSQL.Simple.FromRow
 import           Database.PostgreSQL.Simple.ToField
 import           Database.PostgreSQL.Simple.ToRow
 import           GHC.Generics                       (Generic)
-import           Minecart.Parsers
 
 -- Core Data Types
 
@@ -84,6 +84,15 @@ instance FromNamedRecord Post where
          <*> return 0
          <*> return []
          <*> return []
+
+toBool :: ByteString -> Bool
+toBool "TRUE"  = True
+toBool "true"  = True
+toBool "FALSE" = False
+toBool _       = False
+
+toDay :: ByteString -> Maybe Day
+toDay = parseTimeM True defaultTimeLocale "%d-%b-%y" . unpack
 
 
 -- Database
@@ -188,13 +197,13 @@ instance FromJSON Sentence where
   parseJSON _ = mzero
 
 instance ToJSON GoogleRequest where
-  toJSON (GoogleRequest body) =
+  toJSON (GoogleRequest b) =
     object [
       "encodingType" .= encoding
     , "document"     .= object [
           "type"     .= type'
         , "language" .= lan
-        , "content"  .= body
+        , "content"  .= b
         ]
     ]
     where type'    = "PLAIN_TEXT" :: Text

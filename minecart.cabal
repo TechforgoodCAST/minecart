@@ -17,7 +17,6 @@ library
                      , Minecart.Core
                      , Minecart.Database
                      , Minecart.GoogleCloud
-                     , Minecart.Parsers
                      , Minecart.Types
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
@@ -33,7 +32,6 @@ library
                      , text
                      , time
                      , transformers
-                     , trifecta
                      , vector
                      , raw-strings-qq
 
@@ -52,5 +50,6 @@ test-suite minecart-test
   default-language:    Haskell2010
   build-depends:       base
                      , minecart
+                     , time
                      , hspec
                      , aeson
