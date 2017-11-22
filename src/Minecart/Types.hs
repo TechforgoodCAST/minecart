@@ -10,6 +10,7 @@ import           Data.Csv                           hiding (toField, (.:), (.=))
 import qualified Data.Csv                           as C
 import           Data.Text.Lazy                     (Text)
 import           Data.Time
+import           Data.Vector
 import           Database.PostgreSQL.Simple         (Connection)
 import           Database.PostgreSQL.Simple.FromRow
 import           Database.PostgreSQL.Simple.ToField
@@ -31,8 +32,8 @@ data Post =
   , moderated                  :: Bool
   , documentSentimentScore     :: Double
   , documentSentimentMagnitude :: Double
-  , entities                   :: [Entity]
-  , sentences                  :: [Sentence]
+  , entities                   :: Vector Entity
+  , sentences                  :: Vector Sentence
   } deriving (Eq, Show, Generic)
 
 data Entity =
@@ -82,8 +83,8 @@ instance FromNamedRecord Post where
          <*> (toBool <$> (r `C.lookup` "moderated"))
          <*> return 0
          <*> return 0
-         <*> return []
-         <*> return []
+         <*> return empty
+         <*> return empty
 
 toBool :: ByteString -> Bool
 toBool "TRUE"  = True
@@ -109,8 +110,8 @@ instance FromRow Post where
                  <*> field
                  <*> field
                  <*> field
-                 <*> return []
-                 <*> return []
+                 <*> return empty
+                 <*> return empty
 
 instance ToRow Post where
   toRow p =

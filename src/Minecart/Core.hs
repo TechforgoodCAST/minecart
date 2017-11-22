@@ -56,9 +56,9 @@ collectEntities = do
 
 collectSentiments :: IO ()
 collectSentiments = do
-  k    <- loadApiKey
-  conn   <- DB.minecartConn
-  posts  <- DB.remainingSentimentPosts conn
+  k     <- loadApiKey
+  conn  <- DB.minecartConn
+  posts <- DB.remainingSentimentPosts conn
   let config = GoogleConfig k "analyzeSentiment" conn
   Cloud.run config posts
 
@@ -75,6 +75,7 @@ postToElasticsearch = do
 
 postBulk :: Vector BulkOperation -> BH IO ()
 postBulk xs = do
+  liftIO $ putStrLn "posting to elasticsearch"
   bulk xs
   refreshIndex gbIndex
   liftIO $ putStrLn "posted to elasticsearch"
@@ -82,20 +83,24 @@ postBulk xs = do
 resetIndex :: IO ()
 resetIndex = runBH' $ do
   deleteIndex gbIndex
-  createIndex indexSettings gbIndex
+  createIndex settings gbIndex
   putMapping gbIndex postMapping PostMapping
   liftIO $ putStrLn "reset index"
+  where
+    settings = IndexSettings (ShardCount 1) (ReplicaCount 0)
 
 loadBulkStream :: IO (Vector BulkOperation)
 loadBulkStream = do
+  putStrLn "preparing bulk stream"
   conn <- DB.minecartConn
   ex   <- DB.allEntities conn
   sx   <- DB.allSentences conn
   px   <- DB.allPosts conn
+  putStrLn "loaded bulk stream"
   return $ bulkStream ex sx px
 
-bulkStream :: [Entity] -> [Sentence] -> [Post] -> Vector BulkOperation
-bulkStream ex sx = fromList . map bulkOperation . combineAll ex sx
+bulkStream :: IntMap (Vector Entity) -> IntMap (Vector Sentence) -> Vector Post -> Vector BulkOperation
+bulkStream ex sx = fmap bulkOperation . combineAll ex sx
 
 bulkOperation :: Post -> BulkOperation
 bulkOperation p = BulkIndex gbIndex postMapping (docId p) $ toJSON p
@@ -103,29 +108,21 @@ bulkOperation p = BulkIndex gbIndex postMapping (docId p) $ toJSON p
 
 runBH' :: BH IO a -> IO a
 runBH' = withBH defaultManagerSettings server
-
-indexSettings :: IndexSettings
-indexSettings = IndexSettings (ShardCount 1) (ReplicaCount 0)
+  where server = Server "http://localhost:9200"
 
 gbIndex :: IndexName
 gbIndex = IndexName "gingerbread"
 
 postMapping :: MappingName
-postMapping   = MappingName "post"
-
-server :: Server
-server = Server "http://localhost:9200"
+postMapping = MappingName "post"
 
 
 -- Combine All Data
 
-combineAll :: [Entity] -> [Sentence] -> [Post] -> [Post]
-combineAll ex sx = map $ combinedPost em sm
-  where
-    em = entitiesMap ex
-    sm = sentencesMap sx
+combineAll :: IntMap (Vector Entity) -> IntMap (Vector Sentence) -> Vector Post -> Vector Post
+combineAll em = fmap . combinedPost em
 
-combinedPost :: IntMap [Entity] -> IntMap [Sentence] -> Post -> Post
+combinedPost :: IntMap (Vector Entity) -> IntMap (Vector Sentence) -> Post -> Post
 combinedPost em sm p = fromMaybe p $ do
   let pId = postId p
   e <- IM.lookup pId em
@@ -133,11 +130,3 @@ combinedPost em sm p = fromMaybe p $ do
   return $ p { entities  = e
              , sentences = s
              }
-
-sentencesMap :: [Sentence] -> IntMap [Sentence]
-sentencesMap = foldr accum empty
-  where accum a = insertWith (++) (sentencePostId a) [a]
-
-entitiesMap :: [Entity] -> IntMap [Entity]
-entitiesMap = foldr accum empty
-  where accum a = insertWith (++) (entityPostId a) [a]

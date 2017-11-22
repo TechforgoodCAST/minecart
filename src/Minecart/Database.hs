@@ -3,11 +3,16 @@
 
 module Minecart.Database where
 
-import Data.Foldable              (toList)
-import Data.Int                   (Int64)
-import Database.PostgreSQL.Simple
-import Minecart.Types
-import Text.RawString.QQ
+import           Data.Foldable              (toList)
+import           Data.Int                   (Int64)
+import           Data.IntMap                (IntMap)
+import qualified Data.IntMap                as IM
+import           Data.Monoid                ((<>))
+import           Data.Vector                (Vector)
+import qualified Data.Vector                as V
+import           Database.PostgreSQL.Simple
+import           Minecart.Types
+import           Text.RawString.QQ
 
 -- Queries
 
@@ -109,14 +114,20 @@ WHERE NOT EXISTS (
 createTables :: Connection -> IO Int64
 createTables conn = execute_ conn createTablesQuery
 
-allPosts :: Connection -> IO [Post]
-allPosts conn = query_ conn "SELECT * FROM posts"
+allPosts :: Connection -> IO (Vector Post)
+allPosts conn = fold_ conn "SELECT * FROM posts" V.empty f
+  where
+    f a = return . flip V.cons a
 
-allEntities :: Connection -> IO [Entity]
-allEntities conn = query_ conn "SELECT * FROM entities"
+allEntities :: Connection -> IO (IntMap (Vector Entity))
+allEntities conn = fold_ conn "SELECT * FROM entities" IM.empty f
+  where
+    f a r = return $ IM.insertWith (<>) (entityPostId r) (V.singleton r) a
 
-allSentences :: Connection -> IO [Sentence]
-allSentences conn = query_ conn "SELECT * FROM sentence_sentiments"
+allSentences :: Connection -> IO (IntMap (Vector Sentence))
+allSentences conn = fold_ conn "SELECT * FROM sentence_sentiments" IM.empty f
+  where
+    f a r = return $ IM.insertWith (<>) (sentencePostId r) (V.singleton r) a
 
 insertAllPosts :: Foldable f => Connection -> f Post -> IO Int64
 insertAllPosts conn posts = do
