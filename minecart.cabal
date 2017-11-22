@@ -1,6 +1,6 @@
 name:                minecart
 version:             0.1.0.0
-synopsis:            utilities to embelish and transport gingerbread forum data into elasticsearch
+synopsis:            utilities to embellish and transport gingerbread forum data into elasticsearch
 homepage:            https://github.com/TechforgoodCAST/minecart#readme
 license:             MIT
 license-file:        LICENSE

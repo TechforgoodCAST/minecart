@@ -5,20 +5,20 @@ import System.Console.GetOpt
 import System.Environment
 
 data Flag =
-    Setup
+    PgSetup
   | CollectEntities
   | CollectSentences
-  | PostToElasticSearch
-  | ResetIndex
+  | ElasticsearchSetup
+  | ElasticsearchIndex
   deriving Show
 
 options :: [OptDescr Flag]
 options =
-  [ Option [] ["setup"]       (NoArg Setup) "sets up intermediate postgres db from gb-forum.csv"
-  , Option [] ["entities"]    (NoArg CollectEntities) "collects entities from google cloud for each post"
-  , Option [] ["sentences"]   (NoArg CollectSentences) "collects sentence sentiments from google cloud for each post"
-  , Option [] ["post"]        (NoArg PostToElasticSearch) "posts the collected data to elasticsearch"
-  , Option [] ["reset-index"] (NoArg ResetIndex) "resets elasticsearch index"
+  [ Option [] ["pgsetup"]      (NoArg PgSetup) "sets up intermediate postgres db from gb-forum.csv"
+  , Option [] ["entities"]     (NoArg CollectEntities) "collects entities from google cloud for each post"
+  , Option [] ["sentences"]    (NoArg CollectSentences) "collects sentence sentiments from google cloud for each post"
+  , Option [] ["index"]        (NoArg ElasticsearchIndex) "indexes the collected data in elasticsearch"
+  , Option [] ["elasticsetup"] (NoArg ElasticsearchSetup) "sets up elasticsearch index"
   ]
 
 currentOption :: [String] -> Either String Flag
@@ -34,11 +34,11 @@ info = usageInfo "Usage: " options
 action :: Flag -> IO ()
 action f =
   case f of
-    Setup               -> setup
-    CollectEntities     -> collectEntities
-    CollectSentences    -> collectSentences
-    PostToElasticSearch -> postToElasticsearch
-    ResetIndex          -> resetIndex
+    PgSetup            -> setup
+    CollectEntities    -> collectEntities
+    CollectSentences   -> collectSentences
+    ElasticsearchIndex -> postToElasticsearch
+    ElasticsearchSetup -> resetIndex
 
 app :: IO ()
 app = (currentOption <$> getArgs) >>= either putStrLn action
