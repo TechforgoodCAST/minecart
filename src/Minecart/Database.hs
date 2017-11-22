@@ -31,7 +31,7 @@ CREATE TABLE posts (
   document_sentiment_score float,
   document_sentiment_magnitude float
 );
-CREATE TABLE entities (
+CREATE TABLE entity_sentiments (
   entity_id SERIAL PRIMARY KEY,
   post_id integer references posts(post_id),
   name text,
@@ -49,7 +49,7 @@ CREATE TABLE sentence_sentiments (
 CREATE TABLE cloud_response_statuses (
 	post_id integer PRIMARY KEY,
 	entities_queried boolean DEFAULT FALSE,
-	sentiment_queried boolean DEFAULT FALSE
+	sentences_queried boolean DEFAULT FALSE
 );|]
 
 insertPostQuery :: Query
@@ -57,7 +57,7 @@ insertPostQuery = "INSERT INTO posts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 insertEntityQuery :: Query
 insertEntityQuery = [r|
-INSERT INTO entities (post_id, name, salience, sentiment_score, sentiment_magnitude)
+INSERT INTO entity_sentiments (post_id, name, salience, sentiment_score, sentiment_magnitude)
   VALUES (?, ?, ?, ?, ?)
 |]
 
@@ -120,7 +120,7 @@ allPosts conn = fold_ conn "SELECT * FROM posts" V.empty f
     f a = return . flip V.cons a
 
 allEntities :: Connection -> IO (IntMap (Vector Entity))
-allEntities conn = fold_ conn "SELECT * FROM entities" IM.empty f
+allEntities conn = fold_ conn "SELECT * FROM entity_sentiments" IM.empty f
   where
     f a r = return $ IM.insertWith (<>) (entityPostId r) (V.singleton r) a
 

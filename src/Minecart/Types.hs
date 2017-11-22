@@ -55,16 +55,18 @@ data Sentence =
 
 
 newtype Entities = Entities [Entity] deriving Show
-data Sentiment = Sentiment Double Double [Sentence] deriving Show
+data Sentiment   = Sentiment Double Double [Sentence] deriving Show
+
 newtype GoogleRequest = GoogleRequest Text deriving Show
 
 data GoogleConfig =
   GoogleConfig {
     apiKey      :: String
-  , requestType :: String
+  , requestType :: RequestType
   , dbConn      :: Connection
   }
 
+data RequestType = EntitySentiment | SentenceSentiment
 data PostMapping = PostMapping
 
 

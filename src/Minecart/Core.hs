@@ -3,7 +3,7 @@
 module Minecart.Core
   ( setup
   , collectEntities
-  , collectSentiments
+  , collectSentences
   , postToElasticsearch
   , resetIndex
   ) where
@@ -51,15 +51,15 @@ collectEntities = do
   k     <- loadApiKey
   conn  <- DB.minecartConn
   posts <- DB.remainingEntityPosts conn
-  let config = GoogleConfig k "analyzeEntitySentiment" conn
+  let config = GoogleConfig k EntitySentiment conn
   Cloud.run config posts
 
-collectSentiments :: IO ()
-collectSentiments = do
+collectSentences :: IO ()
+collectSentences = do
   k     <- loadApiKey
   conn  <- DB.minecartConn
   posts <- DB.remainingSentimentPosts conn
-  let config = GoogleConfig k "analyzeSentiment" conn
+  let config = GoogleConfig k SentenceSentiment conn
   Cloud.run config posts
 
 loadApiKey :: IO String

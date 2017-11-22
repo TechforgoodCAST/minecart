@@ -17,18 +17,17 @@ type GoogleReader = ReaderT GoogleConfig IO
 run :: Foldable f => GoogleConfig -> f Post -> IO ()
 run config posts =
   case requestType config of
-    "analyzeSentiment"       -> runR $ collectSentiment posts
-    "analyzeEntitySentiment" -> runR $ collectEntities posts
-    _                        -> putStrLn "unrecognized option"
+    SentenceSentiment -> runR $ collectSentences posts
+    EntitySentiment   -> runR $ collectEntities posts
   where
     runR eff = runReaderT (runEffect eff) config
 
 -- Pipes
 
-collectSentiment :: Foldable f => f Post -> Effect GoogleReader ()
-collectSentiment posts =
+collectSentences :: Foldable f => f Post -> Effect GoogleReader ()
+collectSentences posts =
   each posts
-    >-> requestSentiment
+    >-> requestSentences
     >-> insertSentiment
 
 collectEntities :: Foldable f => f Post -> Effect GoogleReader ()
@@ -60,8 +59,8 @@ insertEntities = forever $ do
       putStrLn $ "inserted entities for postId: " ++ show (postId post)
       DB.insertEntities conn xs
 
-requestSentiment :: Pipe Post (Post, Sentiment) GoogleReader ()
-requestSentiment = pipeReq $ googleRequest formatSentiment
+requestSentences :: Pipe Post (Post, Sentiment) GoogleReader ()
+requestSentences = pipeReq $ googleRequest formatSentiment
 
 requestEntities :: Pipe Post (Post, Entities) GoogleReader ()
 requestEntities = pipeReq $ googleRequest formatEntities
@@ -82,11 +81,15 @@ googleRequest format post = do
       baseUrl = "https://language.googleapis.com/v1/documents:"
       request = setBody <$> parseRequest rawReq
       rawReq  = "POST " <> baseUrl
-                        <> requestType config
+                        <> requestTypeString (requestType config)
                         <> "?key="
                         <> apiKey config
   res <- (format post . getResponseBody) <$> (request >>= httpJSON)
   return (post, res)
+
+requestTypeString :: RequestType -> String
+requestTypeString EntitySentiment   = "analyzeEntitySentiment"
+requestTypeString SentenceSentiment = "analyzeSentiment"
 
 
 -- Data

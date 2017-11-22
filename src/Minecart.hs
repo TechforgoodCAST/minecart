@@ -7,7 +7,7 @@ import System.Environment
 data Flag =
     Setup
   | CollectEntities
-  | CollectSentiments
+  | CollectSentences
   | PostToElasticSearch
   | ResetIndex
   deriving Show
@@ -16,7 +16,7 @@ options :: [OptDescr Flag]
 options =
   [ Option [] ["setup"]       (NoArg Setup) "sets up intermediate postgres db from gb-forum.csv"
   , Option [] ["entities"]    (NoArg CollectEntities) "collects entities from google cloud for each post"
-  , Option [] ["sentiments"]  (NoArg CollectSentiments) "collects sentiments from google cloud for each post"
+  , Option [] ["sentences"]   (NoArg CollectSentences) "collects sentence sentiments from google cloud for each post"
   , Option [] ["post"]        (NoArg PostToElasticSearch) "posts the collected data to elasticsearch"
   , Option [] ["reset-index"] (NoArg ResetIndex) "resets elasticsearch index"
   ]
@@ -36,7 +36,7 @@ action f =
   case f of
     Setup               -> setup
     CollectEntities     -> collectEntities
-    CollectSentiments   -> collectSentiments
+    CollectSentences    -> collectSentences
     PostToElasticSearch -> postToElasticsearch
     ResetIndex          -> resetIndex
 
