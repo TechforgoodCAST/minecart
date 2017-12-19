@@ -31,9 +31,10 @@ There are a number of actions minecart can perform
 + `--pgsetup` adds the tables to the minecart pogstres database and adds forum posts from `gb-forum.csv`
 + `--entities` runs google cloud natural language request for each post body and collects the entities in the db
 + `--sentences` runs google cloud natural language request for each post body and collects sentences sentiments in the db
-+ `--elasticsetup` sets up the elasticsearch index
-+ `--index` indexes the complete post data in elasticsearch
++ `--elastic` sets up an elasticsearch index and adds the complete post data to it
 
-`--pgsetup` must be run first  
-`--entities` & `--sentences` are optional (need an environment var of `GOOGLE_CLOUD_API_KEY`)
-then run `--elasticsetup` & `--index`
+### Running Order
+
++ `--pgsetup` must be run first  
++ `--entities` & `--sentences` are optional (need an environment var of `GOOGLE_CLOUD_API_KEY`)
++ finally run `--elastic` to set up an elasticsearch index with the post data
