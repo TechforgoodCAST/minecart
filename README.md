@@ -1,6 +1,6 @@
 # Minecart
 
-utility to embellish transport gingerbread CSV forum data into Elasticsearch.
+utility to embellish transport gingerbread CSV forum data into Elasticsearch. Uses the [Google Cloud Natural Language API](https://cloud.google.com/natural-language/) to add analysis data to each forum post.
 
 ### Building the utility:
 
