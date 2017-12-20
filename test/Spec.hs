@@ -6,7 +6,7 @@ import qualified Data.ByteString.Lazy as BL
 import           Data.Csv
 import           Data.Time            (toGregorian)
 import qualified Data.Vector          as V
-import           Helper               (csvHeaders, samplePost)
+import           Helper               (csvHeaders, samplePost1, samplePost2)
 import           Minecart
 import           Minecart.Types
 import           Test.Hspec
@@ -43,5 +43,6 @@ main = hspec $ do
   describe "CSV parser" $
     it "should parse the sample file correctly" $ do
       Right (decodedHeaders, posts) <- decodeByName <$> BL.readFile "sample-data/gb-forum-sample.csv"
-      decodedHeaders `shouldBe` csvHeaders
-      V.head posts   `shouldBe` samplePost
+      decodedHeaders        `shouldBe` csvHeaders
+      V.unsafeIndex posts 0 `shouldBe` samplePost1
+      V.unsafeIndex posts 1 `shouldBe` samplePost2
