@@ -1,0 +1,3 @@
+post_id,thread_id,user_id,body,date,visible,moderated,subject,username,forum_id
+20295,4756,1066420,"This is a post body",02-Jan-13,TRUE,TRUE,hello I'm new here,user1234,44
+21413,5083,1066452,"This is another post body",05-Apr-16,FALSE,TRUE,a new thread,user5678,45

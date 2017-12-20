@@ -2,13 +2,14 @@
 
 module Main where
 
-import Data.ByteString.Lazy (ByteString, intercalate, toStrict)
-import Data.Csv
-import Data.Time
-import Data.Vector
-import Minecart
-import Minecart.Types
-import Test.Hspec
+import qualified Data.ByteString.Lazy as BL
+import           Data.Csv
+import           Data.Time            (toGregorian)
+import qualified Data.Vector          as V
+import           Helper               (csvHeaders, samplePost)
+import           Minecart
+import           Minecart.Types
+import           Test.Hspec
 
 main :: IO ()
 main = hspec $ do
@@ -25,7 +26,7 @@ main = hspec $ do
 
   describe "command line parser" $ do
     it "returns correct option from command line arguments" $ do
-      currentOption ["--pgsetup"] `shouldBe` Right PgSetup
+      currentOption ["--pgsetup"]  `shouldBe` Right PgSetup
       currentOption ["--entities"] `shouldBe` Right CollectEntities
 
     it "ignores arguments after the first option" $
@@ -40,26 +41,7 @@ main = hspec $ do
       xs `shouldContain` "Usage: "
 
   describe "CSV parser" $
-    it "should parse records correctly" $ do
-      let allHeaders = [ "post_id"
-                       , "thread_id"
-                       , "user_id"
-                       , "username"
-                       , "subject"
-                       , "body"
-                       , "date"
-                       , "visible"
-                       , "moderated"
-                       ]
-          rawH = intercalate "," allHeaders `mappend` "\r\n"
-          r    = "123,232,12,user1,hello,hello world,02-Jan-13,TRUE,TRUE\r\n"
-          expectedPost = Post
-                          123 232 12
-                          "user1" "hello" "hello world"
-                          (Just $ fromGregorian 2013 1 2)
-                          True True
-                          0 0
-                          empty empty
-          (Right (hd, res)) = decodeByName $ rawH `mappend` r
-      hd  `shouldBe` fromList (toStrict <$> allHeaders)
-      res `shouldBe` fromList [expectedPost]
+    it "should parse the sample file correctly" $ do
+      Right (decodedHeaders, posts) <- decodeByName <$> BL.readFile "sample-data/gb-forum-sample.csv"
+      decodedHeaders `shouldBe` csvHeaders
+      V.head posts   `shouldBe` samplePost
